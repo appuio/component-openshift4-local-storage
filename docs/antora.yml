@@ -1,0 +1,6 @@
+name: openshift4-local-storage
+title: openshift4-local-storage
+version: master
+start_page: ROOT:index.adoc
+nav:
+  - modules/ROOT/partials/nav.adoc
