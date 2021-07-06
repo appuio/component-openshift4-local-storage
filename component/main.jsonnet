@@ -44,4 +44,5 @@ local lvs = import 'localvolumes.libsonnet';
   '10_operator_group': operator_group,
   '20_olm_subscription': subscription,
   '30_localvolumes': lvs.localvolumes,
+  '40_storageclass_syncconfigs': lvs.restriction_syncconfigs,
 }
