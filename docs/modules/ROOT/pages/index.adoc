@@ -1,5 +1,5 @@
-= openshift4-local-storage
+= OpenShift 4 local-storage
 
-openshift4-local-storage is a Commodore component to manage openshift4-local-storage.
+openshift4-local-storage is a Commodore component to manage the RedHat Local Storage operator and associated `LocalVolume` resources.
 
 See the xref:references/parameters.adoc[parameters] reference for further details.

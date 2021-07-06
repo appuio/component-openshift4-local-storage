@@ -1,6 +1,6 @@
 # Commodore Component: openshift4-local-storage
 
-This is a [Commodore][commodore] Component for openshift4-local-storage.
+This is a [Commodore][commodore] Component to manage the RedHat Local Storage Operator and associated `LocalVolume` resources.
 
 This repository is part of Project Syn.
 For documentation on Project Syn and this component, see https://syn.tools.
