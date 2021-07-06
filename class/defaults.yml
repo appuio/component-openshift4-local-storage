@@ -1,4 +1,9 @@
 parameters:
   openshift4_local_storage:
     =_metadata: {}
-    namespace: syn-openshift4-local-storage
+    namespace: openshift-local-storage
+
+    local_storage_operator:
+      channel: "4.7"
+
+    local_volumes: {}
