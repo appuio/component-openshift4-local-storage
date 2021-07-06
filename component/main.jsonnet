@@ -3,6 +3,19 @@ local kube = import 'lib/kube.libjsonnet';
 local inv = kap.inventory();
 local params = inv.parameters.openshift4_local_storage;
 
+local namespace =
+  kube.Namespace(params.namespace)
+  {
+    metadata+: {
+      annotations+: {
+        // Allow pods to be scheduled on any node
+        // Required to be able to configure local storage PVs on
+        // infrastructure nodes.
+        'openshift.io/node-selector': '',
+      },
+    },
+  };
+
 local operator_group =
   kube._Object(
     'operators.coreos.com/v1',
@@ -40,7 +53,7 @@ local subscription =
 local lvs = import 'localvolumes.libsonnet';
 
 {
-  '00_namespace': kube.Namespace(params.namespace),
+  '00_namespace': namespace,
   '10_operator_group': operator_group,
   '20_olm_subscription': subscription,
   '30_localvolumes': lvs.localvolumes,
