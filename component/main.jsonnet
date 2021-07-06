@@ -37,14 +37,11 @@ local subscription =
     },
   };
 
-local localvolumes = [
-  params.local_volumes[vn]
-  for vn in std.objectFields(params.local_volumes)
-];
+local lvs = import 'localvolumes.libsonnet';
 
 {
   '00_namespace': kube.Namespace(params.namespace),
   '10_operator_group': operator_group,
   '20_olm_subscription': subscription,
-  '30_localvolumes': localvolumes,
+  '30_localvolumes': lvs.localvolumes,
 }
