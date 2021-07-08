@@ -44,8 +44,8 @@ IMPORTANT: The component overwrites key `.spec.storageClassDevices` based on key
 
 See the OpenShift documentation for the Local Storage Operator for possible configurations for
 
-* https://docs.openshift.com/container-platform/4.7/storage/persistent_storage/persistent-storage-local.html#local-volume-cr_persistent-storage-local[field `nodeSelector`]
-* https://docs.openshift.com/container-platform/4.7/storage/persistent_storage/persistent-storage-local.html#local-tolerations_persistent-storage-local[field `tolerations`]
+* https://docs.openshift.com/container-platform/latest/storage/persistent_storage/persistent-storage-local.html#local-volume-cr_persistent-storage-local[field `nodeSelector`]
+* https://docs.openshift.com/container-platform/latest/storage/persistent_storage/persistent-storage-local.html#local-tolerations_persistent-storage-local[field `tolerations`]
 
 === Key `storage_class_devices`
 
@@ -56,9 +56,6 @@ values:: dicts with keys `volumeMode`, `fsType`, `devicePaths`
 
 
 Each entry in `storage_class_devices` is transformed into an array element as shown below.
-The operator will create PVs and a `StorageClass` for each entry in `.spec.storageClassDevices`.
-
-See https://docs.openshift.com/container-platform/4.7/storage/persistent_storage/persistent-storage-local.html#local-volume-cr_persistent-storage-local[the OpenShift documentation] for an explanation of the valid fields in values of dict `storage_class_devices`.
 
 Given the `storage_class_devices` specification shown on the left, the `LocalVolume` resource on the right is created by the component.
 
@@ -93,6 +90,14 @@ spec:
   # remaining spec omitted
 ----
 |===
+
+Given this `LocalVolume` resource, the operator creates
+
+* A single `StorageClass` for each key in `storage_class_devices`
+* PVs making `/dev/vdb` available.
+One such PV is created per node which is matched by the node selector in `.spec.nodeSelector` of the `LocalVolume` object (omitted in the example)
+
+See https://docs.openshift.com/container-platform/latest/storage/persistent_storage/persistent-storage-local.html#local-volume-cr_persistent-storage-local[the OpenShift documentation] for an explanation of the valid fields in values of dict `storage_class_devices`.
 
 === Key `restricted_to`
 
@@ -188,91 +193,12 @@ parameters:
 
 This configuration for parameter `local_volumes` results in the following resources to apply to the cluster:
 
-* A `LocalVolume` resource named `storagevolumes`:
-+
-[source,yaml]
-----
-apiVersion: local.storage.openshift.io/v1
-kind: LocalVolume
-metadata:
-  labels:
-    name: storagevolumes
-  name: storagevolumes
-  namespace: openshift-local-storage
-spec:
-  nodeSelector:
-    nodeSelectorTerms:
-      matchExpressions:
-        - key: node-role.kubernetes.io/storage
-          operator: Exists
-  storageClassDevices:
-    - devicePaths:
-        - /dev/vdb
-      storageClassName: localblock-storage
-      volumeMode: Block
-  tolerations:
-    - key: storagenode
-      operator: Exists
-----
+* A `LocalVolume` resource named `storagevolumes` which configures
+** a storage class named `localblock-storage`
+** a PV for `/dev/vda5` with `storageClassName=localblock-storage` on each node which has the label `node-role.kubernetes.io/storage`
 
 * A `SyncConfig` resource named `openshift4-local-storage-restrict-storagevolumes`
-+
-[source,yaml]
-----
-apiVersion: sync.appuio.ch/v1alpha1
-kind: SyncConfig
-metadata:
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-  labels:
-    name: openshift4-local-storage-restrict-storagevolumes
-  name: openshift4-local-storage-restrict-storagevolumes
-  namespace: syn-espejo
-spec:
-  forceRecreate: true
-  namespaceSelector:
-    labelSelector:
-      matchExpressions:
-        - key: argocd.argoproj.io/instance
-          operator: NotIn
-          values:
-            - rook-ceph
-  syncItems:
-    - apiVersion: v1
-      kind: ResourceQuota
-      metadata:
-        labels:
-          app.kubernetes.io/part-of: openshift4-local-storage
-        name: openshift4-local-storage-restrict-storagevolumes
-      spec:
-        hard:
-          localblock-storage.storageclass.k8s.io/persistentvolumeclaims: '0'
-----
+This `SyncConfig` ensures that the `ResourceQuota` restricting the PVC count for storage class `storagevolumes` to 0 is present in namespaces without the label `argocd.argoproj.io/instance=rook-ceph`.
 
 * A `SyncConfig` resource named `openshift4-local-storage-restrict-storagevolumes-prune`
-+
-[source,yaml]
-----
-apiVersion: sync.appuio.ch/v1alpha1
-kind: SyncConfig
-metadata:
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-  labels:
-    name: openshift4-local-storage-restrict-storagevolumes
-  name: openshift4-local-storage-restrict-storagevolumes
-  namespace: syn-espejo
-spec:
-  forceRecreate: true
-  namespaceSelector:
-    labelSelector:
-      matchExpressions:
-        - key: argocd.argoproj.io/instance
-          operator: In
-          values:
-            - rook-ceph
-  deleteItems:
-    - apiVersion: v1
-      kind: ResourceQuota
-      name: openshift4-local-storage-restrict-storagevolumes
-----
+This `SyncConfig` ensures that the `ResourceQuota` restricting the PVC count for storage class `storagevolumes` to 0 is removed in namespaces with the label `argocd.argoproj.io/instance=rook-ceph`.
