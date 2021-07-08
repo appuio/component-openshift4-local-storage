@@ -148,7 +148,7 @@ namespaceSelector:
 
 This example configuration shows how to present device `/dev/vdb` on all nodes with label `node-role.kubernetes.io/storage` as a PV with `volumeMode=Block` and storage class `localblock-storage`.
 
-The example restricts the use of the resulting storage class `localblock-storage` to namespaces labelled with `syn.tools/component=rook-ceph`.
+The example restricts the use of the resulting storage class `localblock-storage` to namespaces labelled with `argocd.argoproj.io/instance=rook-ceph`.
 
 [source,yaml]
 ----
@@ -158,9 +158,9 @@ parameters:
       # Create a `LocalVolume` resource named `storagevolumes`
       storagevolumes:
         # Restrict usage of the resulting storage class to namespaces
-        # labelled with `syn.tools/component=rook-ceph`.
+        # labelled with `argocd.argoproj.io/instance=rook-ceph`.
         restricted_to:
-          syn.tools/component:
+          argocd.argoproj.io/instance:
             values:
               - rook-ceph
         # Present `/dev/vdb` on nodes selected by the node selector
@@ -233,7 +233,7 @@ spec:
   namespaceSelector:
     labelSelector:
       matchExpressions:
-        - key: syn.tools/component
+        - key: argocd.argoproj.io/instance
           operator: NotIn
           values:
             - rook-ceph
@@ -247,4 +247,32 @@ spec:
       spec:
         hard:
           localblock-storage.storageclass.k8s.io/persistentvolumeclaims: '0'
+----
+
+* A `SyncConfig` resource named `openshift4-local-storage-restrict-storagevolumes-prune`
++
+[source,yaml]
+----
+apiVersion: sync.appuio.ch/v1alpha1
+kind: SyncConfig
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    name: openshift4-local-storage-restrict-storagevolumes
+  name: openshift4-local-storage-restrict-storagevolumes
+  namespace: syn-espejo
+spec:
+  forceRecreate: true
+  namespaceSelector:
+    labelSelector:
+      matchExpressions:
+        - key: argocd.argoproj.io/instance
+          operator: In
+          values:
+            - rook-ceph
+  deleteItems:
+    - apiVersion: v1
+      kind: ResourceQuota
+      name: openshift4-local-storage-restrict-storagevolumes
 ----
