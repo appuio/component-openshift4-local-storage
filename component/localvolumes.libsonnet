@@ -54,33 +54,6 @@ local buildLabelSelector(volspec, invert=true) =
     ],
   };
 
-local syncconfig(name, volspec) = espejo.syncConfig(name) {
-  spec: {
-    forceRecreate: true,
-    namespaceSelector: {
-      labelSelector: buildLabelSelector(volspec),
-    },
-    syncItems: [
-      {
-        apiVersion: 'v1',
-        kind: 'ResourceQuota',
-        metadata: {
-          name: name,
-          labels: {
-            'app.kubernetes.io/part-of': 'openshift4-local-storage',
-          },
-        },
-        spec: {
-          hard: {
-            ['%s.storageclass.storage.k8s.io/persistentvolumeclaims' % sc]: '0'
-            for sc in std.objectFields(volspec.storage_class_devices)
-          },
-        },
-      },
-    ],
-  },
-};
-
 local syncconfigs = std.prune(
   std.flattenArrays([
     local volspec = params.local_volumes[vn];
