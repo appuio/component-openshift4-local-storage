@@ -6,14 +6,199 @@ The parent key for all of the following parameters is `openshift4_local_storage`
 
 [horizontal]
 type:: string
-default:: `syn-openshift4-local-storage`
+default:: `openshift-local-storage`
 
 The namespace in which to deploy this component.
+Defaults to the suggested namespace for the RedHat Local Storage operator.
+
+== `local_storage_operator.channel`
+
+[horizontal]
+type:: string
+default:: `"4.7"`
+
+The subscription channel to use when installing the Local Storage Operator using the Operator Lifecycle Manager.
+
+== local_volumes
+
+[horizontal]
+type:: dict
+keys:: names of `LocalVolume` resources to create
+values:: dicts with keys
+* `config` (mandatory)
+* `restricted_to` (optional)
+* `storage_class_devices` (mandatory)
+default::  `{}`
+
+The component will render a `LocalVolume` resource for each entry in the dict.
+
+=== Key `config`
+
+[horizontal]
+type:: dict
+keys:: `nodeSelector`, `tolerations`
+
+The value of key `config` of the entry is used as the base for field `.spec` of the `LocalVolume` resource.
+
+IMPORTANT: The component overwrites key `.spec.storageClassDevices` based on key <<_key_storage_class_devices,`storage_class_devices`>>.
+
+See the OpenShift documentation for the Local Storage Operator for possible configurations for
+
+* https://docs.openshift.com/container-platform/latest/storage/persistent_storage/persistent-storage-local.html#local-volume-cr_persistent-storage-local[field `nodeSelector`]
+* https://docs.openshift.com/container-platform/latest/storage/persistent_storage/persistent-storage-local.html#local-tolerations_persistent-storage-local[field `tolerations`]
+
+=== Key `storage_class_devices`
+
+[horizontal]
+type:: dict
+keys:: used as value for field `storageClassName` in resulting array elements
+values:: dicts with keys `volumeMode`, `fsType`, `devicePaths`
 
 
-== Example
+Each entry in `storage_class_devices` is transformed into an array element as shown below.
+
+Given the `storage_class_devices` specification shown on the left, the `LocalVolume` resource on the right is created by the component.
+
+// don't look at this too closely, except when it's rendered -SG,2021-07-06.
+[cols=".^9,.^1,.^11",grid="none"]
+|===
+a|
+.Config in hierarchy
+[source,yaml]
+----
+storage_class_devices:
+  localstorage:
+    volumeMode: Block
+    devicePaths:
+      - /dev/vdb
+----
+a|pass:[<span style="font-size: 200%">&#8658;</span>]
+a|
+.Resulting `LocalVolume` resource
+[source,yaml]
+----
+apiVersion:
+kind: LocalVolume
+metdata:
+  name: ... # omitted
+spec:
+  storageClassDevices:
+    - storageClassName: localstorage
+      volumeMode: Block
+      devicePaths:
+        - /dev/vdb
+  # remaining spec omitted
+----
+|===
+
+Given this `LocalVolume` resource, the operator creates
+
+* A single `StorageClass` for each key in `storage_class_devices`
+* PVs making `/dev/vdb` available.
+One such PV is created per node which is matched by the node selector in `.spec.nodeSelector` of the `LocalVolume` object (omitted in the example)
+
+See https://docs.openshift.com/container-platform/latest/storage/persistent_storage/persistent-storage-local.html#local-volume-cr_persistent-storage-local[the OpenShift documentation] for an explanation of the valid fields in values of dict `storage_class_devices`.
+
+=== Key `restricted_to`
+
+[horizontal]
+type:: dict
+keys:: namespace labels
+values:: one of
+* empty dict (`{}`)
+* dict with key `values`
+
+If this key is present, the component creates an Espejo `SyncConfig` to restrict the use of the storage classes created by the `LocalVolume` resource.
+
+This restriction is implemented with `ResourceQuota` resources which give a quota of 0 PVCs for the storage classes.
+With this `ResourceQuota` configuration, the resource quota must be configured in all namespaces other than the ones that are allowed to use the storage class.
+Therefore, the component must to invert the given restrictions to correctly restrict usage of the storage class to the specified namespaces.
+
+The content of the key is expected to be a dict, with keys in the dict corresponding to labels on namespaces.
+
+The values of the dict can be
+
+* Empty dicts (`{}`).
+In this case, the component constructs the following namespace selector `matchExpressions` entry:
++
+[source,yaml]
+----
+namespaceSelector:
+  labelSelector:
+    matchExpressions:
+      - key: <KEY> <1>
+        operator: DoesNotExist <2>
+----
+<1> The key in the `restricted_to` dict is used as value for field `key` in the match expression
+<2> The `ResourceQuota` needs to be present in all namespaces which don't have the label `<KEY>`.
+
+* Dicts with key `values`.
+In this case, the component constructs the following namespace selector `matchExpressions` entry:
++
+[source,yaml]
+----
+namespaceSelector:
+  labelSelector:
+    matchExpressions:
+      - key: <KEY> <1>
+        operator: NotIn <2>
+        values: < restricted_to[KEY].values > <3>
+----
+<1> The key in the `restricted_to` dict is used as value for field `key` in the match expression
+<2> The `ResourceQuota` needs to be present in all namespaces which don't have the label `<KEY>`.
+<3> The contents of field `values`.
+
+
+== Example configuration
+
+This example configuration shows how to present device `/dev/vdb` on all nodes with label `node-role.kubernetes.io/storage` as a PV with `volumeMode=Block` and storage class `localblock-storage`.
+
+The example restricts the use of the resulting storage class `localblock-storage` to namespaces labelled with `argocd.argoproj.io/instance=rook-ceph`.
 
 [source,yaml]
 ----
-namespace: example-namespace
+parameters:
+  openshift4_local_storage:
+    local_volumes:
+      # Create a `LocalVolume` resource named `storagevolumes`
+      storagevolumes:
+        # Restrict usage of the resulting storage class to namespaces
+        # labelled with `argocd.argoproj.io/instance=rook-ceph`.
+        restricted_to:
+          argocd.argoproj.io/instance:
+            values:
+              - rook-ceph
+        # Present `/dev/vdb` on nodes selected by the node selector
+        # (see below) as PV with `volumeMode=Block` and storage class
+        # `localblock-storage`
+        storage_class_devices:
+          localblock-storage:
+            volumeMode: Block
+            devicePaths:
+              - /dev/vdb
+        config:
+          # Ensure the resulting manager pods can run on nodes tainted
+          # with `storagenode=True:NoSchedule`
+          tolerations:
+            - key: storagenode
+              operator: Exists
+          # Restrict resulting pods to nodes with label
+          # `node-role.kubernetes.io/storage`
+          nodeSelector:
+            nodeSelectorTerms:
+              matchExpressions:
+                - key: node-role.kubernetes.io/storage
+                  operator: Exists
 ----
+
+This configuration for parameter `local_volumes` results in the following resources to apply to the cluster:
+
+* A `LocalVolume` resource named `storagevolumes` which configures
+** a storage class named `localblock-storage`
+** a PV for `/dev/vda5` with `storageClassName=localblock-storage` on each node which has the label `node-role.kubernetes.io/storage`
+
+* A `SyncConfig` resource named `openshift4-local-storage-restrict-storagevolumes`
+This `SyncConfig` ensures that the `ResourceQuota` restricting the PVC count for storage class `storagevolumes` to 0 is present in namespaces without the label `argocd.argoproj.io/instance=rook-ceph`.
+
+* A `SyncConfig` resource named `openshift4-local-storage-restrict-storagevolumes-prune`
+This `SyncConfig` ensures that the `ResourceQuota` restricting the PVC count for storage class `storagevolumes` to 0 is removed in namespaces with the label `argocd.argoproj.io/instance=rook-ceph`.
