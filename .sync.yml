@@ -1,6 +1,7 @@
 :global:
   componentName: openshift4-local-storage
   githubUrl: https://github.com/appuio/component-openshift4-local-storage
+  feature_goldenTests: true
 
 docs/antora.yml:
   name: openshift4-local-storage
