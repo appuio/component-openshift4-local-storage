@@ -1,0 +1,11 @@
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  annotations: {}
+  labels:
+    name: openshift-local-storage
+  name: openshift-local-storage
+  namespace: openshift-local-storage
+spec:
+  targetNamespaces:
+    - openshift-local-storage
