@@ -16,6 +16,7 @@ Defaults to the suggested namespace for the RedHat Local Storage operator.
 [horizontal]
 type:: string
 default:: `"4.7"`
+example:: `"${dynamic_facts:openshiftVersion:Major}.${dynamic_facts:openshiftVersion:Minor}"`
 
 The subscription channel to use when installing the Local Storage Operator using the Operator Lifecycle Manager.
 
