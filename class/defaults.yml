@@ -4,6 +4,6 @@ parameters:
     namespace: openshift-local-storage
 
     local_storage_operator:
-      channel: "4.7"
+      channel: "stable"
 
     local_volumes: {}
