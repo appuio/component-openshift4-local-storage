@@ -5,4 +5,5 @@ metadata:
     openshift.io/node-selector: ''
   labels:
     name: openshift-local-storage
+    openshift.io/cluster-monitoring: 'true'
   name: openshift-local-storage

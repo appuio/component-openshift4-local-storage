@@ -13,6 +13,9 @@ local namespace =
         // infrastructure nodes.
         'openshift.io/node-selector': '',
       },
+      labels+: {
+        'openshift.io/cluster-monitoring': 'true',
+      },
     },
   };
 
