@@ -2,6 +2,12 @@
 
 The parent key for all of the following parameters is `openshift4_local_storage`.
 
+[NOTE]
+====
+Kapitan secret references are not supported in this component.
+If you need to change this behavior, please create a PR to adjust the ArgoCD app in `component/app.jsonnet` accordingly.
+====
+
 == `namespace`
 
 [horizontal]
