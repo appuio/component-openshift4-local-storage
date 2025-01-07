@@ -1,6 +1,7 @@
 parameters:
   openshift4_local_storage:
-    =_metadata: {}
+    =_metadata:
+      multi_tenant: true
     namespace: openshift-local-storage
 
     local_storage_operator:
