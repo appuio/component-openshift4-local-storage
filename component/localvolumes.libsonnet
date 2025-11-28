@@ -43,24 +43,6 @@ local metadataPatch = {
   },
 };
 
-// See https://docs.openshift.com/container-platform/4.8/cicd/builds/securing-builds-by-strategy.html#builds-disabling-build-strategy-globally_securing-builds-by-strategy
-// local patch = {
-//   apiVersion: 'v1',
-//   kind: 'ResourceQuota',
-//   metadata: {
-//     name: 'openshift4-local-storage-restrict-%s' % vn,
-//     labels: {
-//       'app.kubernetes.io/part-of': 'openshift4-local-storage',
-//     },
-//   },
-//   spec: {
-//     hard: {
-//       ['%s.storageclass.storage.k8s.io/persistentvolumeclaims' % sc]: '0'
-//       for sc in std.objectFields(volspec.storage_class_devices)
-//     },
-//   },
-// };
-
 local serviceAccount = {
   apiVersion: 'v1',
   kind: 'ServiceAccount',
@@ -169,7 +151,7 @@ local managedResource = esp.managedResource('openshift4-local-storage-resourcequ
 
         This component will restrict the creation of PersistentVolumeClaims for local volumes,
         by creating ResourceQuotas for each local volume.
-        Only namespaces that are part of a rook-ceph cluster will be exempted from this restriction.
+        Only namespaces that match the `restricted_to` condition will be exempted from this restriction.
       |||,
     },
   } + metadataPatch,

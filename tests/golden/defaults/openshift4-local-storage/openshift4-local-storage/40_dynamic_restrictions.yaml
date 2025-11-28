@@ -168,7 +168,7 @@ metadata:
 
       This component will restrict the creation of PersistentVolumeClaims for local volumes,
       by creating ResourceQuotas for each local volume.
-      Only namespaces that are part of a rook-ceph cluster will be exempted from this restriction.
+      Only namespaces that match the `restricted_to` condition will be exempted from this restriction.
     syn.tools/source: https://github.com/appuio/component-openshift4-local-storage.git
   labels:
     app.kubernetes.io/component: openshift4-local-storage
@@ -228,13 +228,23 @@ spec:
 
     // Reconcile the given namespace.
     local reconcileNamespace(namespace) =
-      // Remove the ResourceQuota if the namespace belongs to a rook-ceph cluster.
-      if std.get(std.get(namespace.metadata, 'labels', {}), 'argocd.argoproj.io/instance', '') == 'rook-ceph' then [
-        esp.markForDelete(generateResourceQuota(vn, namespace))
-        for vn in std.objectFields(config.local_volumes)
-      ]
-      else [
-        generateResourceQuota(vn, namespace)
+      local restrictedTo(vn, namespace) =
+        local nsLabels = std.get(namespace.metadata, 'labels', {});
+        local evaluate(key, condition) =
+          if std.objectHas(condition, 'values') then
+            local labelval = std.get(nsLabels, key);
+            labelval != null && std.member(condition.values, labelval)
+          else
+            std.objectHas(nsLabels, key);
+        std.objectValues(std.mapWithKey(evaluate, config.local_volumes[vn].restricted_to));
+      [
+        // We only want to generate quotas for local_volumes entries that configure `restricted_to`
+        if std.objectHas(config.local_volumes[vn], 'restricted_to') then (
+          if std.any(restrictedTo(vn, namespace)) then
+            esp.markForDelete(generateResourceQuota(vn, namespace))
+          else
+            generateResourceQuota(vn, namespace)
+        )
         for vn in std.objectFields(config.local_volumes)
       ];
 
