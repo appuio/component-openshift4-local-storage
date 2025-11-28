@@ -232,14 +232,14 @@ spec:
         local nsLabels = std.get(namespace.metadata, 'labels', {});
         local evaluate(key, condition) =
           if std.objectHas(condition, 'values') then
-            local labelval = std.get(nsLabels, k);
+            local labelval = std.get(nsLabels, key);
             labelval != null && std.member(condition.values, labelval)
           else
-            std.objectHas(nsLabels, k);
-        std.objectValues(std.mapWithKey(evaluate, vn.restricted_to));
+            std.objectHas(nsLabels, key);
+        std.objectValues(std.mapWithKey(evaluate, std.get(config.local_volumes, vn).restricted_to));
       [
         // We only want to generate quotas for local_volumes entries that configure `restricted_to`
-        if std.objectHas(vn, 'restricted_to') then (
+        if std.objectHas(std.get(config.local_volumes, vn), 'restricted_to') then (
           if std.any(restrictedTo(vn, namespace)) then
             esp.markForDelete(generateResourceQuota(vn, namespace))
           else
