@@ -1,3 +1,23 @@
-# Overwrite parameters here
+parameters:
+  openshift4_local_storage:
+    local_volumes:
+      storagevolumes:
+        restricted_to:
+          argocd.argoproj.io/instance:
+            values:
+              - rook-ceph
+        storage_class_devices:
+          localblock-storage:
+            volumeMode: Block
+            devicePaths:
+              - /dev/vda5
+        config:
+          tolerations:
+            - key: storagenode
+              operator: Exists
+          nodeSelector:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/storage
+                    operator: Exists
 
-# parameters: {...}
