@@ -1,0 +1,284 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    syn.tools/source: https://github.com/appuio/component-openshift4-local-storage.git
+  labels:
+    app.kubernetes.io/component: openshift4-local-storage
+    app.kubernetes.io/managed-by: commodore
+    app.kubernetes.io/part-of: syn
+  name: openshift4-local-storage-resourcequota-restriction
+  namespace: syn-espejote
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    syn.tools/source: https://github.com/appuio/component-openshift4-local-storage.git
+  labels:
+    app.kubernetes.io/component: openshift4-local-storage
+    app.kubernetes.io/managed-by: commodore
+    app.kubernetes.io/part-of: syn
+  name: syn-espejote:openshift4-local-storage-resourcequota-restriction
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ''
+    resources:
+      - resourcequotas
+    verbs:
+      - '*'
+  - apiGroups:
+      - espejote.io
+    resourceNames:
+      - openshift4-local-storage-resourcequota-restriction
+    resources:
+      - jsonnetlibraries
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  annotations:
+    syn.tools/source: https://github.com/appuio/component-openshift4-local-storage.git
+  labels:
+    app.kubernetes.io/component: openshift4-local-storage
+    app.kubernetes.io/managed-by: commodore
+    app.kubernetes.io/part-of: syn
+  name: syn-espejote:openshift4-local-storage-resourcequota-restriction
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: syn-espejote:openshift4-local-storage-resourcequota-restriction
+subjects:
+  - kind: ServiceAccount
+    name: openshift4-local-storage-resourcequota-restriction
+    namespace: syn-espejote
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    syn.tools/source: https://github.com/appuio/component-openshift4-local-storage.git
+  labels:
+    app.kubernetes.io/component: openshift4-local-storage
+    app.kubernetes.io/managed-by: commodore
+    app.kubernetes.io/part-of: syn
+  name: syn-espejote:openshift4-local-storage-resourcequota-restriction
+  namespace: syn-espejote
+rules:
+  - apiGroups:
+      - espejote.io
+    resourceNames:
+      - openshift4-local-storage-resourcequota-restriction
+    resources:
+      - jsonnetlibraries
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations:
+    syn.tools/source: https://github.com/appuio/component-openshift4-local-storage.git
+  labels:
+    app.kubernetes.io/component: openshift4-local-storage
+    app.kubernetes.io/managed-by: commodore
+    app.kubernetes.io/part-of: syn
+  name: syn-espejote:openshift4-local-storage-resourcequota-restriction
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: syn-espejote:openshift4-local-storage-resourcequota-restriction
+subjects:
+  - kind: ServiceAccount
+    name: openshift4-local-storage-resourcequota-restriction
+    namespace: syn-espejote
+---
+apiVersion: espejote.io/v1alpha1
+kind: JsonnetLibrary
+metadata:
+  labels:
+    app.kubernetes.io/name: openshift4-local-storage-resourcequota-restriction
+  name: openshift4-local-storage-resourcequota-restriction
+  namespace: syn-espejote
+spec:
+  data:
+    config.json: |-
+      {
+          "local_volumes": {
+              "storagevolumes": {
+                  "config": {
+                      "nodeSelector": {
+                          "nodeSelectorTerms": [
+                              {
+                                  "matchExpressions": [
+                                      {
+                                          "key": "node-role.kubernetes.io/storage",
+                                          "operator": "Exists"
+                                      }
+                                  ]
+                              }
+                          ]
+                      },
+                      "tolerations": [
+                          {
+                              "key": "storagenode",
+                              "operator": "Exists"
+                          }
+                      ]
+                  },
+                  "restricted_to": {
+                      "argocd.argoproj.io/instance": {
+                          "values": [
+                              "rook-ceph"
+                          ]
+                      }
+                  },
+                  "storage_class_devices": {
+                      "localblock-storage": {
+                          "devicePaths": [
+                              "/dev/vda5"
+                          ],
+                          "volumeMode": "Block"
+                      }
+                  }
+              }
+          }
+      }
+---
+apiVersion: espejote.io/v1alpha1
+kind: ManagedResource
+metadata:
+  annotations:
+    syn.tools/description: |
+      Manages ResourceQuotas for local volumes.
+
+      This component will restrict the creation of PersistentVolumeClaims for local volumes,
+      by creating ResourceQuotas for each local volume.
+      Only namespaces that are part of a rook-ceph cluster will be exempted from this restriction.
+    syn.tools/source: https://github.com/appuio/component-openshift4-local-storage.git
+  labels:
+    app.kubernetes.io/component: openshift4-local-storage
+    app.kubernetes.io/managed-by: commodore
+    app.kubernetes.io/name: openshift4-local-storage-resourcequota-restriction
+    app.kubernetes.io/part-of: syn
+  name: openshift4-local-storage-resourcequota-restriction
+  namespace: syn-espejote
+spec:
+  applyOptions:
+    force: true
+  context:
+    - name: namespaces
+      resource:
+        apiVersion: v1
+        kind: Namespace
+    - name: resourcequotas
+      resource:
+        apiVersion: v1
+        kind: ResourceQuota
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/component: openshift4-local-storage
+            app.kubernetes.io/managed-by: espejote
+            app.kubernetes.io/part-of: syn
+        namespace: ''
+  serviceAccountRef:
+    name: openshift4-local-storage-resourcequota-restriction
+  template: |
+    local esp = import 'espejote.libsonnet';
+    local config = import 'lib/openshift4-local-storage-resourcequota-restriction/config.json';
+
+    local context = esp.context();
+
+    local generateResourceQuota(vn, namespace) = {
+      apiVersion: 'v1',
+      kind: 'ResourceQuota',
+      metadata: {
+        annotations: {
+          'syn.tools/source': 'https://github.com/appuio/component-openshift4-local-storage.git',
+        },
+        labels: {
+          'app.kubernetes.io/managed-by': 'espejote',
+          'app.kubernetes.io/part-of': 'syn',
+          'app.kubernetes.io/component': 'openshift4-local-storage',
+        },
+        name: 'openshift4-local-storage-restrict-%s' % vn,
+        namespace: namespace.metadata.name,
+      },
+      spec: {
+        hard: {
+          ['%s.storageclass.storage.k8s.io/persistentvolumeclaims' % sc]: '0'
+          for sc in std.objectFields(std.get(config.local_volumes, vn, {}).storage_class_devices)
+        },
+      },
+    };
+
+    // Reconcile the given namespace.
+    local reconcileNamespace(namespace) =
+      // Remove the ResourceQuota if the namespace belongs to a rook-ceph cluster.
+      if std.get(std.get(namespace.metadata, 'labels', {}), 'argocd.argoproj.io/instance', '') == 'rook-ceph' then [
+        esp.markForDelete(generateResourceQuota(vn, namespace))
+        for vn in std.objectFields(config.local_volumes)
+      ]
+      else [
+        generateResourceQuota(vn, namespace)
+        for vn in std.objectFields(config.local_volumes)
+      ];
+
+    // check if the object is getting deleted by checking if it has
+    // `metadata.deletionTimestamp`.
+    local inDelete(obj) = std.get(obj.metadata, 'deletionTimestamp', '') != '';
+
+    // Do the thing
+    if esp.triggerName() == 'namespace' then (
+      // Handle single namespace update on namespace trigger
+      local nsTrigger = esp.triggerData();
+      // nsTrigger.resource can be null if we're called when the namespace is getting
+      // deleted. If it's not null, we still don't want to do anything when the
+      // namespace is getting deleted.
+      if nsTrigger.resource != null && !inDelete(nsTrigger.resource) then
+        reconcileNamespace(nsTrigger.resource)
+    ) else if esp.triggerName() == 'resourcequota' then (
+      // Handle single namespace update on resourcequota trigger
+      local namespace = esp.triggerData().resourceEvent.namespace;
+      std.flattenArrays([
+        reconcileNamespace(ns)
+        for ns in context.namespaces
+        if ns.metadata.name == namespace && !inDelete(ns)
+      ])
+    ) else (
+      // Reconcile all namespaces for jsonnetlibrary update or managedresource
+      // reconcile.
+      local namespaces = context.namespaces;
+      std.flattenArrays([
+        reconcileNamespace(ns)
+        for ns in namespaces
+        if !inDelete(ns)
+      ])
+    )
+  triggers:
+    - name: jslib
+      watchResource:
+        apiVersion: espejote.io/v1alpha1
+        kind: JsonnetLibrary
+        name: openshift4-local-storage-resourcequota-restriction
+        namespace: syn-espejote
+    - name: namespace
+      watchContextResource:
+        name: namespaces
+    - name: resourcequota
+      watchContextResource:
+        name: resourcequotas
