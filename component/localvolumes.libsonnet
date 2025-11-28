@@ -1,7 +1,8 @@
 local com = import 'lib/commodore.libjsonnet';
-local espejo = import 'lib/espejo.libsonnet';
+local esp = import 'lib/espejote.libsonnet';
 local kap = import 'lib/kapitan.libjsonnet';
 local kube = import 'lib/kube.libjsonnet';
+
 local inv = kap.inventory();
 local params = inv.parameters.openshift4_local_storage;
 
@@ -31,81 +32,196 @@ local volumes = [
   for vn in std.objectFields(params.local_volumes)
 ];
 
-local buildLabelSelector(volspec, invert=true) =
-  local restrictions = volspec.restricted_to;
-  {
-    matchExpressions: [
-      local e = restrictions[k];
-      local hasval = std.objectHas(e, 'values');
-      // Invert given restrictions, since we want to deploy the
-      // ResourceQuota in all namespaces which shouldn't use the
-      // storageclass.
-      local op = if invert then (
-        if hasval then 'NotIn' else 'DoesNotExist'
-      ) else (
-        if hasval then 'In' else 'Exists'
-      );
-      {
-        key: k,
-        operator: op,
-        [if hasval then 'values']: e.values,
-      }
-      for k in std.objectFields(restrictions)
-    ],
-  };
+local metadataPatch = {
+  annotations+: {
+    'syn.tools/source': 'https://github.com/appuio/component-openshift4-local-storage.git',
+  },
+  labels+: {
+    'app.kubernetes.io/managed-by': 'commodore',
+    'app.kubernetes.io/part-of': 'syn',
+    'app.kubernetes.io/component': 'openshift4-local-storage',
+  },
+};
 
-local syncconfigs = std.prune(
-  std.flattenArrays([
-    local volspec = params.local_volumes[vn];
-    local name = 'openshift4-local-storage-restrict-%s' % vn;
-    if std.objectHas(volspec, 'restricted_to') then [
-      espejo.syncConfig(name) {
-        spec: {
-          forceRecreate: true,
-          namespaceSelector: {
-            labelSelector: buildLabelSelector(volspec),
-          },
-          syncItems: [
-            {
-              apiVersion: 'v1',
-              kind: 'ResourceQuota',
-              metadata: {
-                name: name,
-                labels: {
-                  'app.kubernetes.io/part-of': 'openshift4-local-storage',
-                },
-              },
-              spec: {
-                hard: {
-                  ['%s.storageclass.storage.k8s.io/persistentvolumeclaims' % sc]: '0'
-                  for sc in std.objectFields(volspec.storage_class_devices)
-                },
-              },
-            },
-          ],
+local serviceAccount = {
+  apiVersion: 'v1',
+  kind: 'ServiceAccount',
+  metadata: {
+    name: 'openshift4-local-storage-resourcequota-restriction',
+    namespace: inv.parameters.espejote.namespace,
+  } + metadataPatch,
+};
+
+local clusterRole = {
+  apiVersion: 'rbac.authorization.k8s.io/v1',
+  kind: 'ClusterRole',
+  metadata: {
+    name: 'syn-espejote:openshift4-local-storage-resourcequota-restriction',
+  } + metadataPatch,
+  rules: [
+    {
+      apiGroups: [ '' ],
+      resources: [ 'namespaces' ],
+      verbs: [ 'get', 'list', 'watch' ],
+    },
+    {
+      apiGroups: [ '' ],
+      resources: [ 'resourcequotas' ],
+      verbs: [ '*' ],
+    },
+    {
+      apiGroups: [ 'espejote.io' ],
+      resources: [ 'jsonnetlibraries' ],
+      resourceNames: [ 'openshift4-local-storage-resourcequota-restriction' ],
+      verbs: [ 'get', 'list', 'watch' ],
+    },
+  ],
+};
+local clusterRoleBinding = {
+  apiVersion: 'rbac.authorization.k8s.io/v1',
+  kind: 'ClusterRoleBinding',
+  metadata: {
+    name: 'syn-espejote:openshift4-local-storage-resourcequota-restriction',
+  } + metadataPatch,
+  roleRef: {
+    apiGroup: 'rbac.authorization.k8s.io',
+    kind: 'ClusterRole',
+    name: clusterRole.metadata.name,
+  },
+  subjects: [
+    {
+      kind: 'ServiceAccount',
+      name: serviceAccount.metadata.name,
+      namespace: serviceAccount.metadata.namespace,
+    },
+  ],
+};
+
+local role = {
+  apiVersion: 'rbac.authorization.k8s.io/v1',
+  kind: 'Role',
+  metadata: {
+    name: 'syn-espejote:openshift4-local-storage-resourcequota-restriction',
+    namespace: inv.parameters.espejote.namespace,
+  } + metadataPatch,
+  rules: [
+    {
+      apiGroups: [ 'espejote.io' ],
+      resources: [ 'jsonnetlibraries' ],
+      resourceNames: [ 'openshift4-local-storage-resourcequota-restriction' ],
+      verbs: [ 'get', 'list', 'watch' ],
+    },
+  ],
+};
+local roleBinding = {
+  apiVersion: 'rbac.authorization.k8s.io/v1',
+  kind: 'RoleBinding',
+  metadata: {
+    name: 'syn-espejote:openshift4-local-storage-resourcequota-restriction',
+  } + metadataPatch,
+  roleRef: {
+    apiGroup: 'rbac.authorization.k8s.io',
+    kind: 'Role',
+    name: role.metadata.name,
+  },
+  subjects: [
+    {
+      kind: 'ServiceAccount',
+      name: serviceAccount.metadata.name,
+      namespace: serviceAccount.metadata.namespace,
+    },
+  ],
+};
+
+local jsonnetLibrary = esp.jsonnetLibrary('openshift4-local-storage-resourcequota-restriction', inv.parameters.espejote.namespace) {
+  spec: {
+    data: {
+      'config.json': std.manifestJson({
+        local_volumes: params.local_volumes,
+      }),
+    },
+  },
+};
+
+local managedResource = esp.managedResource('openshift4-local-storage-resourcequota-restriction', inv.parameters.espejote.namespace) {
+  metadata+: {
+    annotations+: {
+      'syn.tools/description': |||
+        Manages ResourceQuotas for local volumes.
+
+        This component will restrict the creation of PersistentVolumeClaims for local volumes,
+        by creating ResourceQuotas for each local volume.
+        Only namespaces that match the `restricted_to` condition will be exempted from this restriction.
+      |||,
+    },
+  } + metadataPatch,
+  spec: {
+    applyOptions: {
+      force: true,
+    },
+    serviceAccountRef: {
+      name: serviceAccount.metadata.name,
+    },
+    template: importstr 'espejote-templates/resourcequota-restrictions.jsonnet',
+    context: [
+      {
+        name: 'namespaces',
+        resource: {
+          apiVersion: 'v1',
+          kind: 'Namespace',
         },
       },
-      espejo.syncConfig('%s-prune' % name) {
-        spec: {
-          namespaceSelector: {
-            labelSelector: buildLabelSelector(volspec, invert=false),
-          },
-          deleteItems: [
-            {
-              apiVersion: 'v1',
-              kind: 'ResourceQuota',
-              name: name,
+      {
+        name: 'resourcequotas',
+        resource: {
+          apiVersion: 'v1',
+          kind: 'ResourceQuota',
+          namespace: '',
+          labelSelector: {
+            matchLabels: {
+              'app.kubernetes.io/managed-by': 'espejote',
+              'app.kubernetes.io/part-of': 'syn',
+              'app.kubernetes.io/component': 'openshift4-local-storage',
             },
-          ],
+          },
         },
       },
-    ]
-    else []
-    for vn in std.objectFields(params.local_volumes)
-  ])
-);
+    ],
+    triggers: [
+      {
+        name: 'jslib',
+        watchResource: {
+          apiVersion: jsonnetLibrary.apiVersion,
+          kind: 'JsonnetLibrary',
+          name: jsonnetLibrary.metadata.name,
+          namespace: jsonnetLibrary.metadata.namespace,
+        },
+      },
+      {
+        name: 'namespace',
+        watchContextResource: {
+          name: 'namespaces',
+        },
+      },
+      {
+        name: 'resourcequota',
+        watchContextResource: {
+          name: 'resourcequotas',
+        },
+      },
+    ],
+  },
+};
 
 {
   localvolumes: volumes,
-  restriction_syncconfigs: syncconfigs,
+  dynamic_restrictions: [
+    serviceAccount,
+    clusterRole,
+    clusterRoleBinding,
+    role,
+    roleBinding,
+    jsonnetLibrary,
+    managedResource,
+  ],
 }

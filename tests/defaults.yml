@@ -1,3 +1,34 @@
-# Overwrite parameters here
+applications:
+  - espejote
 
-# parameters: {...}
+parameters:
+  kapitan:
+    dependencies:
+      - type: https
+        source: https://raw.githubusercontent.com/projectsyn/component-espejote/master/lib/espejote.libsonnet
+        output_path: vendor/lib/espejote.libsonnet
+
+  espejote:
+    namespace: syn-espejote
+
+  openshift4_local_storage:
+    local_volumes:
+      storagevolumes:
+        restricted_to:
+          argocd.argoproj.io/instance:
+            values:
+              - rook-ceph
+        storage_class_devices:
+          localblock-storage:
+            volumeMode: Block
+            devicePaths:
+              - /dev/vda5
+        config:
+          tolerations:
+            - key: storagenode
+              operator: Exists
+          nodeSelector:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/storage
+                    operator: Exists
