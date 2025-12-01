@@ -1,5 +1,6 @@
 applications:
   - espejote
+  - openshift4-operators as openshift-operators-redhat
 
 parameters:
   kapitan:
@@ -7,9 +8,17 @@ parameters:
       - type: https
         source: https://raw.githubusercontent.com/projectsyn/component-espejote/master/lib/espejote.libsonnet
         output_path: vendor/lib/espejote.libsonnet
+      - type: https
+        source: https://raw.githubusercontent.com/appuio/component-openshift4-operators/v1.0.2/lib/openshift4-operators.libsonnet
+        output_path: vendor/lib/openshift4-operators.libsonnet
 
   espejote:
     namespace: syn-espejote
+
+  openshift4_operators:
+    defaultInstallPlanApproval: Automatic
+    defaultSource: openshift-operators-redhat
+    defaultSourceNamespace: openshift-operators-redhat
 
   openshift4_local_storage:
     local_volumes:
