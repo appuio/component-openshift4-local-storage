@@ -22,7 +22,15 @@ local namespace = {
   },
 };
 
-local operatorGroup = operatorlib.OperatorGroup('openshift-local-storage') {
+// Hides the .metadata.annotations field if empty for SSA compatibility
+local hideAnnotations = function(obj)
+  obj {
+    metadata+: {
+      [if std.length(std.get(obj.metadata, 'annotations', {})) == 0 then 'annotations']+:: {},
+    },
+  };
+
+local operatorGroup = hideAnnotations(operatorlib.OperatorGroup('openshift-local-storage')) {
   metadata+: {
     namespace: params.namespace,
   },
@@ -33,7 +41,7 @@ local operatorGroup = operatorlib.OperatorGroup('openshift-local-storage') {
   },
 };
 
-local subscription = std.prune(operatorlib.namespacedSubscription(
+local subscription = hideAnnotations(operatorlib.namespacedSubscription(
   params.namespace,
   'local-storage-operator',
   params.local_storage_operator.channel,
