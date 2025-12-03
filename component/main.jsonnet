@@ -33,13 +33,13 @@ local operatorGroup = operatorlib.OperatorGroup('openshift-local-storage') {
   },
 };
 
-local subscription = operatorlib.namespacedSubscription(
+local subscription = std.prune(operatorlib.namespacedSubscription(
   params.namespace,
   'local-storage-operator',
   params.local_storage_operator.channel,
   'redhat-operators',
   'openshift-marketplace'
-);
+));
 
 local lvs = import 'localvolumes.libsonnet';
 
