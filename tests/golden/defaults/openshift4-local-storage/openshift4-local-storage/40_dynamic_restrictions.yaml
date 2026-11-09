@@ -110,6 +110,8 @@ subjects:
 apiVersion: espejote.io/v1alpha1
 kind: JsonnetLibrary
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   labels:
     app.kubernetes.io/name: openshift4-local-storage-resourcequota-restriction
   name: openshift4-local-storage-resourcequota-restriction
@@ -163,6 +165,7 @@ apiVersion: espejote.io/v1alpha1
 kind: ManagedResource
 metadata:
   annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     syn.tools/description: |
       Manages ResourceQuotas for local volumes.
 
